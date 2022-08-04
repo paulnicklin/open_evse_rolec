@@ -25,7 +25,8 @@
  3/7/15        Craig K         add KWH_RECORDING
  10/28/2019    Tim Kuechler    add HEARTBEAT_SUPERVISION
  21/11/20      BarnyD          make alterations to run on Rolec ACSE0020 hardware (3 x LEDs, no ammeter, no temperature montioring)
-  
+ 02/08/22      Scott F         breakout LED control for Rolec controller 
+ 
  * This file is part of Open EVSE.
 
  * Open EVSE is free software; you can redistribute it and/or modify
@@ -528,6 +529,12 @@ void OnboardDisplay::LcdMsg(const char *l1,const char *l2)
 }
 #endif // LCD16X2
 
+int LEDMode = 5; //New variable for Rolec LED control
+unsigned long ledcount2 = 0; // Value of previous timer
+unsigned int ledinterval = 500; // Blink duration
+int blueState = LOW; // Colour states for IF blink loop 
+int redState = LOW;
+int greenState = LOW;
 
 void OnboardDisplay::Update(int8_t updmode)
 {
@@ -539,6 +546,7 @@ void OnboardDisplay::Update(int8_t updmode)
   int currentcap = g_EvseController.GetCurrentCapacity();
 #endif
   unsigned long curms = millis();
+  unsigned long ledcount1 = millis(); // Value for current timer
 
   if (g_EvseController.StateTransition() || (updmode != OBD_UPD_NORMAL)) {
     curms += 1000; // trigger periodic update code below
@@ -554,9 +562,7 @@ void OnboardDisplay::Update(int8_t updmode)
 #endif
     switch(curstate) {
     case EVSE_STATE_A: // not connected
-      SetGreenLed(1);
-      SetRedLed(0);
-      SetBlueLed(0);
+      LEDMode = 3;
 #ifdef LCD16X2
       // Display Timer and Stop Icon - GoldServe
       LcdClear();
@@ -589,9 +595,7 @@ void OnboardDisplay::Update(int8_t updmode)
 #endif //Adafruit RGB LCD
       break;
     case EVSE_STATE_B: // connected/not charging
-      SetGreenLed(1);
-      SetRedLed(0);
-      SetBlueLed(1);
+      LEDMode = 1;
 #ifdef LCD16X2 //Adafruit RGB LCD
       LcdClear();
       LcdSetCursor(0,0);
@@ -634,9 +638,7 @@ void OnboardDisplay::Update(int8_t updmode)
 #endif //Adafruit RGB LCD
       break;
     case EVSE_STATE_C: // charging
-      SetGreenLed(0);
-      SetRedLed(0);
-      SetBlueLed(1);
+      LEDMode = 2;
 #ifdef LCD16X2 //Adafruit RGB LCD
       LcdSetBacklightColor(TEAL);
       LcdClear();
@@ -662,27 +664,21 @@ void OnboardDisplay::Update(int8_t updmode)
 #endif // AMMETER
       break;
     case EVSE_STATE_D: // vent required
-      SetGreenLed(0);
-      SetRedLed(1);
-      SetBlueLed(0);
+      LEDMode = 5;
 #ifdef LCD16X2 //Adafruit RGB LCD
       LcdSetBacklightColor(RED);
       LcdMsg_P(g_psEvseError,g_psVentReq);
 #endif //Adafruit RGB LCD
       break;
     case EVSE_STATE_DIODE_CHK_FAILED:
-      SetGreenLed(0);
-      SetRedLed(1);
-      SetBlueLed(0);
+      LEDMode = 5;
 #ifdef LCD16X2 //Adafruit RGB LCD
       LcdSetBacklightColor(RED);
       LcdMsg_P(g_psEvseError,g_psDiodeChkFailed);
 #endif //Adafruit RGB LCD
       break;
     case EVSE_STATE_GFCI_FAULT:
-      SetGreenLed(0);
-      SetRedLed(1);
-      SetBlueLed(0);
+      LEDMode = 5;
 #ifdef LCD16X2 //Adafruit RGB LCD
       LcdSetBacklightColor(RED);
       if (updmode == OBD_UPD_HARDFAULT) {
@@ -696,9 +692,7 @@ void OnboardDisplay::Update(int8_t updmode)
       break;
 #ifdef TEMPERATURE_MONITORING      
     case EVSE_STATE_OVER_TEMPERATURE:    // overtemp message in Red on the RGB LCD
-      SetGreenLed(0);
-      SetRedLed(1);
-      SetBlueLed(0);
+      LEDMode = 5;
 #ifdef LCD16X2 //Adafruit RGB LCD
       LcdSetBacklightColor(RED);
       LcdMsg_P(g_psSvcReq,g_psTemperatureFault);  //  SERVICE REQUIRED     OVER TEMPERATURE 
@@ -707,9 +701,7 @@ void OnboardDisplay::Update(int8_t updmode)
 #endif //TEMPERATURE_MONITORING        
 #ifdef OVERCURRENT_THRESHOLD
     case EVSE_STATE_OVER_CURRENT:
-      SetGreenLed(0);
-      SetRedLed(1);
-      SetBlueLed(0);
+      LEDMode = 6;
 #ifdef LCD16X2 //Adafruit RGB LCD
       LcdSetBacklightColor(RED);
       LcdPrint_P(0,g_psSvcReq);
@@ -720,9 +712,7 @@ void OnboardDisplay::Update(int8_t updmode)
       break;
 #endif // OVERCURRENT_THRESHOLD   
     case EVSE_STATE_NO_GROUND:
-      SetGreenLed(0);
-      SetRedLed(1);
-      SetBlueLed(0);
+      LEDMode = 5;
 #ifdef LCD16X2 //Adafruit RGB LCD
       LcdSetBacklightColor(RED);
       if (updmode == OBD_UPD_HARDFAULT) {
@@ -735,27 +725,21 @@ void OnboardDisplay::Update(int8_t updmode)
 #endif //Adafruit RGB LCD
       break;
     case EVSE_STATE_STUCK_RELAY:
-      SetGreenLed(0);
-      SetRedLed(1);
-      SetBlueLed(0);
+      LEDMode = 5;
 #ifdef LCD16X2 //Adafruit RGB LCD
       LcdSetBacklightColor(RED);
       LcdMsg_P(updmode == OBD_UPD_HARDFAULT ? g_psSvcReq : g_psEvseError,g_psStuckRelay);
 #endif //Adafruit RGB LCD
       break;
     case EVSE_STATE_RELAY_CLOSURE_FAULT:
-      SetGreenLed(0);
-      SetRedLed(1);
-      SetBlueLed(0);
+      LEDMode = 5;
 #ifdef LCD16X2 //Adafruit RGB LCD
       LcdSetBacklightColor(RED);
       LcdMsg_P(g_psSvcReq,g_psRelayClosureFault);
 #endif //Adafruit RGB LCD
       break;
     case EVSE_STATE_DISABLED:
-      SetGreenLed(0);
-      SetRedLed(1);
-      SetBlueLed(0);
+      LEDMode = 1;
 #ifdef LCD16X2
       LcdSetBacklightColor(VIOLET);
       LcdClear();
@@ -771,9 +755,7 @@ void OnboardDisplay::Update(int8_t updmode)
       break;
 #ifdef GFI_SELFTEST
     case EVSE_STATE_GFI_TEST_FAILED:
-      SetGreenLed(0);
-      SetRedLed(1);
-      SetBlueLed(0);
+      LEDMode = 5;
 #ifdef LCD16X2
       LcdSetBacklightColor(RED);
       LcdMsg_P(g_psTestFailed,g_psGfci);
@@ -781,9 +763,7 @@ void OnboardDisplay::Update(int8_t updmode)
       break;
 #endif // GFI_SELFTEST
     case EVSE_STATE_SLEEPING:
-      SetGreenLed(1);
-      SetRedLed(1);
-      SetBlueLed(0);
+      LEDMode = 6;
 #ifdef LCD16X2
       LcdSetBacklightColor(g_EvseController.EvConnected() ? WHITE : VIOLET);
       LcdClear();
@@ -798,9 +778,7 @@ void OnboardDisplay::Update(int8_t updmode)
 #endif // LCD16X2
       break;
     default:
-      SetGreenLed(0);
-      SetRedLed(1);
-      SetBlueLed(0);
+      LEDMode = 5;
     }
 #ifdef TEMPERATURE_MONITORING
     if ((g_TempMonitor.OverTemperature() || g_TempMonitor.OverTemperatureLogged()) && !g_EvseController.InHardFault()) {
@@ -815,6 +793,74 @@ void OnboardDisplay::Update(int8_t updmode)
 #endif
     }
 #endif // TEMPERATURE_MONITORING
+  }
+
+  // Change LED behaviour. Different cases for different behaviour. Blink interval set earlier on - default 500ms
+switch (LEDMode) {
+      case 1: //Blink Green
+        SetBlueLed(0);
+        SetRedLed(0);
+        if ((ledcount1 - ledcount2) > ledinterval) {
+        // save the last time you blinked the LED
+        ledcount2 = ledcount1;
+        // if the LED is off turn it on and vice-versa:
+        if (greenState == LOW) {
+          greenState = HIGH;
+          SetGreenLed(1);
+        } else {
+          greenState = LOW;
+          SetGreenLed(0);
+        }
+      }
+        break;
+      case 2: //Static Green
+        SetRedLed(0);
+        SetBlueLed(0);
+        SetGreenLed(1);
+        break;
+      case 3: //Blink Blue
+        SetGreenLed(0);
+        SetRedLed(0);
+        if ((ledcount1 - ledcount2) > ledinterval) {
+        // save the last time you blinked the LED
+        ledcount2 = ledcount1;
+        // if the LED is off turn it on and vice-versa:
+        if (blueState == LOW) {
+          blueState = HIGH;
+          SetBlueLed(1);
+        } else {
+          blueState = LOW;
+          SetBlueLed(0);
+        }
+      }
+        break;
+      case 4: //Static Blue 
+        SetRedLed(0);
+        SetGreenLed(0);
+        SetBlueLed(1);
+        break;
+      case 5: //Blink Red
+        SetBlueLed(0);
+        SetGreenLed(0);
+        if ((ledcount1 - ledcount2) > ledinterval) {
+        // save the last time you blinked the LED
+        ledcount2 = ledcount1;
+        // if the LED is off turn it on and vice-versa:
+        if (redState == LOW) {
+          redState = HIGH;
+          SetRedLed(1);
+        } else {
+          redState = LOW;
+          SetRedLed(0);
+        }
+      }
+        break;
+      case 6: //Static Red
+        SetBlueLed(0);
+        SetGreenLed(0);
+        SetRedLed(1);
+        break;
+        break;
   }
 
   //
