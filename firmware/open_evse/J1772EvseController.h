@@ -285,6 +285,8 @@ class J1772EVSEController {
   unsigned long m_HsLastPulse;  // The last time we saw a HS pulse or the last time m_HsInterval elpased without seeing one.  Set to 0 if HEARTBEAT_SUPERVISION triggered                                   
 #endif //HEARTBEAT_SUPERVISION
 
+  void CheckPP(uint8_t *maxCurrentCap, uint8_t *minCurrentSetting);
+
 public:
   J1772EVSEController();
   void Init();

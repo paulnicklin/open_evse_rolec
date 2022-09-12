@@ -21,12 +21,12 @@ typedef struct pp_amps {
 } PP_AMPS;
 
 class AutoCurrentCapacityController {
-  AdcPin adcPP;
+  AdcPin adcPP; // Which pin the resistor is connected to. 
 
 public:
   AutoCurrentCapacityController();
-  uint8_t ReadPPMaxAmps();
-  uint8_t AutoSetCurrentCapacity();
+  uint8_t ReadPPMaxAmps();  // get the value from the resistor
+  //uint8_t AutoSetCurrentCapacity(); // bit rubbish, sets the ma xampage on teh EVSE controller. Don't these guys know about coupling!
 };
 
 

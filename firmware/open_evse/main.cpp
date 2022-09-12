@@ -2498,6 +2498,24 @@ void ProcessInputs()
 #endif
 }
 
+#ifdef PP_AUTO_AMPACITY
+
+uint8_t SetCurrentCapacityFromPP()
+{
+  //MaxAmps really just "amps" we use it as a max on a socket but min on the "solar boost tethered" version.
+  uint8_t amps = g_ACCController.ReadPPMaxAmps();
+  // Our version has a new option for "auto" detect this as open circuit?
+  if (amps) {
+    g_EvseController.SetCurrentCapacity(amps,0,1);
+    return 0;
+  }
+  else {
+    return 1;
+  }
+}
+
+#endif
+
 
 void EvseReset()
 {
@@ -2515,21 +2533,32 @@ void EvseReset()
 #endif  // DELAYTIMER
 
 #ifdef PP_AUTO_AMPACITY
-  g_ACCController.AutoSetCurrentCapacity();
+  //why not set and set here? avoids the ACC knowing about the g_EvseController
+  SetCurrentCapacityFromPP();
+  
 #endif
 }
 
+
 #ifdef PP_AUTO_AMPACITY
+
+//Callback function when state changes. 
+//This would be better as a plug-in. 
+
 uint8_t StateTransitionReqFunc(uint8_t curPilotState,uint8_t newPilotState,uint8_t curEvseState,uint8_t newEvseState)
 {
   uint8_t retEvseState = newEvseState;
 
+  // When car we go into state connected or charging, pull the max amps from the resistor. 
+  // If the value looks wrong, jump back to state A (not connected)
+  // When the car disconnects, we reset back to the maximum 
+  // (this is type 2 untethered behaviour that we borrow with out PX resistor)
   if ((newEvseState >= EVSE_STATE_B) && (newEvseState <= EVSE_STATE_C)) {
     //n.b. no debounce delay needed because J1772EvseController::Update()
     // already debounces before requesting the state transition, so we can
     // be absolutely sure that the PP pin has firm contact by the time we
     // get here
-    if (g_ACCController.AutoSetCurrentCapacity()) {
+    if (SetCurrentCapacityFromPP()) {
       // invalid PP so 0 amps - force to stay in State A
       retEvseState = EVSE_STATE_A;
     }
@@ -2544,8 +2573,9 @@ uint8_t StateTransitionReqFunc(uint8_t curPilotState,uint8_t newPilotState,uint8
 
   return retEvseState;
 }
-#endif //PP_AUTO_AMPACITY
 
+
+#endif //PP_AUTO_AMPACITY
 
 void setup()
 {
@@ -2561,6 +2591,7 @@ void setup()
 #endif // BTN_MENU
 
 #ifdef PP_AUTO_AMPACITY
+  //Attach callback. 
   g_EvseController.SetStateTransitionReqFunc(&StateTransitionReqFunc);
 #endif //PP_AUTO_AMPACITY
 

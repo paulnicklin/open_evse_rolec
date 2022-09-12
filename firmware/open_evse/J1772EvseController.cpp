@@ -572,6 +572,7 @@ void J1772EVSEController::Sleep()
   }
 }
 
+//Not called in normal use unless you call is tover the RAPI?
 void J1772EVSEController::SetSvcLevel(uint8_t svclvl,uint8_t updatelcd)
 {
 #ifdef SERDBG
@@ -601,6 +602,10 @@ void J1772EVSEController::SetSvcLevel(uint8_t svclvl,uint8_t updatelcd)
   }
 }
 
+// This is from the EEPROM, - defaults to the #defined value (L1/L2) 12/32.  
+// Then check min 6 
+//    max against then L1 =16 and for L2 maxHwCurrent
+// 
 uint8_t J1772EVSEController::GetMaxCurrentCapacity()
 {
   uint8_t svclvl = GetCurSvcLevel();
@@ -1217,6 +1222,31 @@ void J1772EVSEController::ReadPilot(uint16_t *plow,uint16_t *phigh)
     *plow = pl;
     *phigh = ph;
   }
+}
+
+
+void J1772EVSEController::CheckPP(uint8_t *maxCurrentCap, uint8_t *minCurrentSetting) 
+{
+  #ifdef PP_AUTO_AMPACITY
+
+  if (((GetState() < EVSE_STATE_B) || (GetState() > EVSE_STATE_C))) return; // don't care if we're not actually charging
+
+  uint8_t mcc = g_ACCController.ReadPPMaxAmps();
+
+  #ifdef PP_AUTO_AMPACITY_PLUS_SOLAR
+    // PP pin isn't a limit we can't pass. It's the MINIMUM we'll send. perhaps we should pass another field on the end of SC, "B" maybe for boost
+    *minCurrentSetting=mcc;
+    return;
+  #else
+    // read the knob/cable to see if the requested value is too high.
+    if (mcc && (mcc < maxCurrentCap)) {
+      //suggested vallue lower than eeprom setting, so set.
+      maxCurrentCap = mcc;
+    }
+  #endif
+
+  #endif // PP_AUTO_AMPACITY
+
 }
 
 
@@ -2012,6 +2042,12 @@ void J1772EVSEController::Calibrate(PCALIB_DATA pcd)
 }
 #endif // CALIBRATE
 
+
+
+// This actaully sets the PWM to tell the car what to do
+// It checks AGAIN that what you ask for is reasonable 
+// Checks the PPMaxAmps (knob/cable) , and the m_MaxHwCurrentCapacity we set either with SC M or at init.
+// if noSave you can't go over the eeprom. if you're saving you can and it will writ ethe new value.
 int J1772EVSEController::SetCurrentCapacity(uint8_t amps,uint8_t updatelcd,uint8_t nosave)
 {
 #ifdef SERDBG
@@ -2020,6 +2056,7 @@ int J1772EVSEController::SetCurrentCapacity(uint8_t amps,uint8_t updatelcd,uint8
 #endif //SERDBG
   int rc = 0;
   uint8_t maxcurrentcap = (GetCurSvcLevel() == 1) ? MAX_CURRENT_CAPACITY_L1 : m_MaxHwCurrentCapacity;
+  uint8_t minCurrentSetting=0; //if we're using solar boost...
 #ifdef SERDBG
   Serial.print("Value set by service level is: ");
   Serial.println(maxcurrentcap);
@@ -2034,25 +2071,25 @@ int J1772EVSEController::SetCurrentCapacity(uint8_t amps,uint8_t updatelcd,uint8
   Serial.println(maxcurrentcap);
 #endif //SERDBG
 
-#ifdef PP_AUTO_AMPACITY
-  if ((GetState() >= EVSE_STATE_B) && (GetState() <= EVSE_STATE_C)) {
-    uint8_t mcc = g_ACCController.ReadPPMaxAmps();
-    if (mcc && (mcc < maxcurrentcap)) {
-      maxcurrentcap = mcc;
-    }
-  }
-#ifdef SERDBG
-  Serial.print("Max value after cable check is: ");
-  Serial.println(maxcurrentcap);
-#endif //SERDBG
-#endif // PP_AUTO_AMPACITY
+  CheckPP(&maxcurrentcap,&minCurrentSetting);
 
-  if ((amps >= MIN_CURRENT_CAPACITY_J1772) && (amps <= maxcurrentcap)) {
+#ifdef SERDBG
+  Serial.print("Min/Max value after (any) cable check is: ");
+  Serial.print(maxcurrentcap);
+  Serial.print("/");
+  Serial.println(minCurrentSetting);  
+#endif //SERDBG
+
+  if ((amps>=minCurrentSetting) && (amps >= MIN_CURRENT_CAPACITY_J1772) && (amps <= maxcurrentcap)) {
     m_CurrentCapacity = amps;
   }
   else if (amps < MIN_CURRENT_CAPACITY_J1772) {
     m_CurrentCapacity = MIN_CURRENT_CAPACITY_J1772;
     rc = 1;
+  }
+  else if (amps < minCurrentSetting) {
+    m_CurrentCapacity = minCurrentSetting;
+    rc = 3; // less thamn knob setting
   }
   else {
     m_CurrentCapacity = maxcurrentcap;
@@ -2080,6 +2117,7 @@ int J1772EVSEController::SetCurrentCapacity(uint8_t amps,uint8_t updatelcd,uint8
 
   return rc;
 }
+
 
 #ifdef HEARTBEAT_SUPERVISION
 //Set the interval to 0 to suspend Heartbeat Supervision
@@ -2321,6 +2359,7 @@ void J1772EVSEController::SetTimeLimit15(uint8_t mind15)
 }
 #endif // TIME_LIMIT
 
+//Called from SC nn M
 uint8_t J1772EVSEController::SetMaxHwCurrentCapacity(uint8_t amps)
 {
   if ((amps >= MIN_CURRENT_CAPACITY_J1772) && (amps <= MAX_CURRENT_CAPACITY_L2)) {

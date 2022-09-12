@@ -119,8 +119,12 @@ typedef unsigned long time_t;
 // EVSE must call state transition function for permission to change states
 //#define STATE_TRANSITION_REQ_FUNC
 
-// auto detect ampacity by PP pin resistor
-// #define PP_AUTO_AMPACITY
+//We could do with a "current rules" class. Reads EEPROM, cable type if socketd, knob position if not, solar inputs etc) 
+// auto detect ampacity by PP pin resistor. Used for socketed type 
+#define PP_AUTO_AMPACITY
+// for TETHERED cables we will send any excess solare up to the max HW capacity (hard coded by the type of cable wired in)
+// This can't se bet for socketed. 
+#define PP_AUTO_AMPACITY_PLUS_SOLAR 
 
 // charge for a specified amount of time and then stop
 #define TIME_LIMIT
@@ -372,7 +376,7 @@ extern AutoCurrentCapacityController g_ACCController;
 #endif
 
 // for testing print various diagnostic messages to the UART
-//#define SERDBG
+#define SERDBG
 
 //
 // begin functional tests
