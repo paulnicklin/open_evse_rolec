@@ -2363,15 +2363,16 @@ void J1772EVSEController::SetTimeLimit15(uint8_t mind15)
 uint8_t J1772EVSEController::SetMaxHwCurrentCapacity(uint8_t amps)
 {
   if ((amps >= MIN_CURRENT_CAPACITY_J1772) && (amps <= MAX_CURRENT_CAPACITY_L2)) {
-    uint8_t eamps = eeprom_read_byte((uint8_t*)EOFS_MAX_HW_CURRENT_CAPACITY);
-    if (!eamps || (eamps == (uint8_t)0xff)) {  // never been written
+    //Why not let it be upped? Presumably some manufacturing rule..
+    //uint8_t eamps = eeprom_read_byte((uint8_t*)EOFS_MAX_HW_CURRENT_CAPACITY);
+    //if (!eamps || (eamps == (uint8_t)0xff)) {  // never been written
       eeprom_write_byte((uint8_t*)EOFS_MAX_HW_CURRENT_CAPACITY,amps);
       m_MaxHwCurrentCapacity = amps;
       if (m_CurrentCapacity > m_MaxHwCurrentCapacity) {
-	SetCurrentCapacity(amps,1,1);
+	    SetCurrentCapacity(amps,1,1);
       }
       return 0;
-    }
+    //}
   }
   return 1;
 }
