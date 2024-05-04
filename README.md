@@ -1,3 +1,21 @@
+#MY NOTES
+
+gitpn is my "fork" with tweaks like refactoring RAPI and adding in my own commands. 
+
+build with arduino
+upload by
+
+
+$ cp ./gitpn/firmware/open_evse/build/arduino.avr.uno/open_evse.ino.hex .
+$ ./avrdude.exe -p atmega328p -c usbasp -B6 -P usb -e -U flash:w:open_evse.ino.hex
+
+The programmer goes in "wrong" in the sense that 1 on the rolec board is NOT pin one. Or the rolec board is labelled wrong.. shoudl be 
+
+12
+34
+56
+
+
 # OpenEVSE
 
 Firmware for OpenEVSE controller used in OpenEVSE Charging Stations sold in the USA, and OpenEnergyMonitor EmonEVSE units sold in (UK/EU).
@@ -89,3 +107,5 @@ Boston, MA 02111-1307, USA.
 * but WITHOUT ANY WARRANTY; without even the implied warranty of
 * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 ```
+
+

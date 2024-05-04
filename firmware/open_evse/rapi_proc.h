@@ -411,6 +411,12 @@ private:
   int tokenize(char *buf);
   int processCmd();
 
+  void ProcessG(char* s, int& rc, UNION4B& u1, UNION4B& u2, UNION4B& u3, UNION4B& u4);
+
+  void ProcessS(char* s, int& rc, UNION4B& u2, UNION4B& u1);
+
+  void ProcessF(char* s, int& rc, UNION4B& u1);
+
   void response(uint8_t ok);
   void appendChk(char *buf);
   
